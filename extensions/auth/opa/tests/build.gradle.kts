@@ -41,10 +41,8 @@ dependencies {
   intTestImplementation("io.quarkus:quarkus-junit5")
   intTestImplementation("io.rest-assured:rest-assured")
 
-  // Test container dependencies
-  intTestImplementation(platform(libs.testcontainers.bom))
-  intTestImplementation("org.testcontainers:junit-jupiter")
   intTestImplementation(project(":polaris-container-spec-helper"))
+  intTestImplementation(testFixtures(project(":polaris-extensions-auth-opa")))
 }
 
 tasks.named("javadoc") { dependsOn("jandex") }

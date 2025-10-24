@@ -57,4 +57,22 @@ dependencies {
   testImplementation(testFixtures(project(":polaris-async-api")))
   testImplementation(project(":polaris-async-java"))
   testImplementation(project(":polaris-idgen-mocks"))
+
+  testFixturesImplementation(project(":polaris-container-spec-helper"))
+}
+
+testing {
+  suites {
+    register<JvmTestSuite>("intTest") {
+      dependencies {
+        implementation(project(":polaris-async-api"))
+        implementation(project(":polaris-async-java"))
+        implementation(project(":polaris-core"))
+        implementation(platform(libs.jackson.bom))
+        implementation("com.fasterxml.jackson.core:jackson-core")
+        implementation("com.fasterxml.jackson.core:jackson-databind")
+        implementation(libs.apache.httpclient5)
+      }
+    }
+  }
 }

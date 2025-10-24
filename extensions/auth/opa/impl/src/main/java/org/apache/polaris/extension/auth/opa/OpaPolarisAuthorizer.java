@@ -21,6 +21,7 @@ package org.apache.polaris.extension.auth.opa;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.annotations.VisibleForTesting;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import java.io.IOException;
@@ -31,6 +32,7 @@ import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
@@ -157,7 +159,7 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
       List<PolarisResolvedPathWrapper> targets,
       List<PolarisResolvedPathWrapper> secondaries) {
     try {
-      String inputJson = buildOpaInputJson(principal, entities, op, targets, secondaries);
+      ObjectNode inputJson = buildOpaInputJson(principal, entities, op, targets, secondaries);
 
       // Create HTTP POST request using Apache HttpComponents
       HttpPost httpPost = new HttpPost(policyUri);
@@ -171,7 +173,9 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
         }
       }
 
-      httpPost.setEntity(new StringEntity(inputJson, ContentType.APPLICATION_JSON));
+      httpPost.setEntity(
+          new StringEntity(
+              objectMapper.writeValueAsString(inputJson), ContentType.APPLICATION_JSON));
 
       // Execute request
       try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
@@ -180,18 +184,22 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
           return false;
         }
 
-        // Read and parse response
-        String responseBody;
-        try {
-          responseBody = EntityUtils.toString(response.getEntity());
-        } catch (ParseException e) {
-          throw new RuntimeException("Failed to parse OPA response", e);
-        }
-        ObjectNode respNode = (ObjectNode) objectMapper.readTree(responseBody);
+        ObjectNode respNode = parseResponse(response.getEntity());
         return respNode.path("result").path("allow").asBoolean(false);
       }
     } catch (IOException e) {
       throw new RuntimeException("OPA query failed", e);
+    }
+  }
+
+  @VisibleForTesting
+  ObjectNode parseResponse(HttpEntity entity) {
+    String responseBody;
+    try {
+      responseBody = EntityUtils.toString(entity);
+      return (ObjectNode) objectMapper.readTree(responseBody);
+    } catch (IOException | ParseException e) {
+      throw new RuntimeException("Failed to parse OPA response", e);
     }
   }
 
@@ -215,7 +223,8 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
    * @return the OPA input JSON string
    * @throws IOException if JSON serialization fails
    */
-  private String buildOpaInputJson(
+  @VisibleForTesting
+  ObjectNode buildOpaInputJson(
       PolarisPrincipal principal,
       Set<PolarisBaseEntity> entities,
       PolarisAuthorizableOperation op,
@@ -229,7 +238,7 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
     input.set("context", buildContextNode());
     ObjectNode root = objectMapper.createObjectNode();
     root.set("input", input);
-    return objectMapper.writeValueAsString(root);
+    return root;
   }
 
   /**

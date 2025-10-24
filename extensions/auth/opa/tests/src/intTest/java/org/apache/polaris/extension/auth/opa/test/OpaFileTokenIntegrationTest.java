@@ -21,9 +21,9 @@ package org.apache.polaris.extension.auth.opa.test;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
+import io.quarkus.test.junit.QuarkusIntegrationTest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.QuarkusTestProfile;
-import io.quarkus.test.junit.QuarkusTestProfile.TestResourceEntry;
 import io.quarkus.test.junit.TestProfile;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
  * <p>These tests verify that OpaPolarisAuthorizer correctly reads bearer tokens from a file and
  * uses them to authenticate with OPA.
  */
-@QuarkusTest
+@QuarkusIntegrationTest
 @TestProfile(OpaFileTokenIntegrationTest.FileTokenOpaProfile.class)
 public class OpaFileTokenIntegrationTest extends OpaIntegrationTestBase {
 
