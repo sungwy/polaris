@@ -16,17 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.config;
+package org.apache.polaris.service.auth;
 
-import io.smallrye.config.ConfigMapping;
-import io.smallrye.config.WithDefault;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@ConfigMapping(prefix = "polaris.authorization")
-public interface AuthorizationConfiguration {
+import java.util.Set;
+import org.junit.jupiter.api.Test;
 
-  @WithDefault("internal")
-  String type();
+class PolarisCredentialTest {
 
-  @WithDefault("internal")
-  PrincipalMode principalMode();
+  @Test
+  void shouldDefaultToInternalPrincipal() {
+    PolarisCredential credential = PolarisCredential.of(42L, "alice", Set.of("role"));
+
+    assertThat(credential.isExternal()).isFalse();
+  }
+
+  @Test
+  void shouldAllowExplicitExternalFlag() {
+    PolarisCredential credential =
+        ImmutablePolarisCredential.builder()
+            .principalId(1L)
+            .principalName("external")
+            .principalRoles(Set.of())
+            .external(true)
+            .build();
+
+    assertThat(credential.isExternal()).isTrue();
+  }
 }

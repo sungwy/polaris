@@ -26,6 +26,13 @@ import org.apache.polaris.core.auth.PolarisPrincipal;
 public interface ResolutionManifestFactory {
 
   @Nonnull
+  @Deprecated
   PolarisResolutionManifest createResolutionManifest(
       @Nonnull PolarisPrincipal principal, @Nullable String referenceCatalogName);
+
+  @Nonnull
+  PolarisResolutionManifest createResolutionManifest(
+      @Nonnull PolarisPrincipal principal,
+      @Nullable String referenceCatalogName,
+      boolean useCallerPrincipalFromContext);
 }

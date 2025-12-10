@@ -33,6 +33,7 @@ import jakarta.inject.Inject;
 import java.util.Set;
 import org.apache.polaris.service.auth.AuthenticatingAugmentor;
 import org.apache.polaris.service.auth.PolarisCredential;
+import org.apache.polaris.service.auth.PolarisCredentialFactory;
 import org.apache.polaris.service.auth.external.mapping.PrincipalMapper;
 import org.apache.polaris.service.auth.external.mapping.PrincipalRolesMapper;
 import org.apache.polaris.service.auth.external.tenant.OidcTenantConfiguration;
@@ -50,13 +51,16 @@ public class OidcPolarisCredentialAugmentor implements SecurityIdentityAugmentor
 
   private final Instance<PrincipalMapper> principalMappers;
   private final Instance<PrincipalRolesMapper> principalRoleMappers;
+  private final PolarisCredentialFactory credentialFactory;
 
   @Inject
   public OidcPolarisCredentialAugmentor(
       @Any Instance<PrincipalMapper> principalMappers,
-      @Any Instance<PrincipalRolesMapper> principalRoleMappers) {
+      @Any Instance<PrincipalRolesMapper> principalRoleMappers,
+      PolarisCredentialFactory credentialFactory) {
     this.principalMappers = principalMappers;
     this.principalRoleMappers = principalRoleMappers;
+    this.credentialFactory = credentialFactory;
   }
 
   @Override
@@ -90,7 +94,8 @@ public class OidcPolarisCredentialAugmentor implements SecurityIdentityAugmentor
         principalMapper.mapPrincipalId(identity).stream().boxed().findFirst().orElse(null);
     String principalName = principalMapper.mapPrincipalName(identity).orElse(null);
     Set<String> principalRoles = rolesMapper.mapPrincipalRoles(identity);
-    PolarisCredential credential = PolarisCredential.of(principalId, principalName, principalRoles);
+    PolarisCredential credential =
+        credentialFactory.create(principalId, principalName, principalRoles);
     // Note: we don't change the identity roles here, this will be done later on
     // by the AuthenticatingAugmentor, which will also validate them.
     return QuarkusSecurityIdentity.builder(identity).addCredential(credential).build();

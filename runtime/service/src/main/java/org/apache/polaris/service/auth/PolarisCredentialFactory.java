@@ -18,45 +18,35 @@
  */
 package org.apache.polaris.service.auth;
 
-import io.quarkus.security.credential.Credential;
 import jakarta.annotation.Nullable;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.util.Set;
-import org.apache.polaris.immutables.PolarisImmutable;
-import org.immutables.value.Value;
+import org.apache.polaris.service.config.AuthorizationConfiguration;
+import org.apache.polaris.service.config.PrincipalMode;
 
 /**
- * A Quarkus Security {@link Credential} exposing Polaris-specific attributes: the principal id,
- * name, and roles.
+ * Builds {@link PolarisCredential} instances while automatically tagging them with their origin
+ * (internal vs external) according to the configured principal mode.
  */
-@PolarisImmutable
-public interface PolarisCredential extends Credential {
+@ApplicationScoped
+public class PolarisCredentialFactory {
 
-  static PolarisCredential of(
+  private final AuthorizationConfiguration authorizationConfiguration;
+
+  @Inject
+  public PolarisCredentialFactory(AuthorizationConfiguration authorizationConfiguration) {
+    this.authorizationConfiguration = authorizationConfiguration;
+  }
+
+  public PolarisCredential create(
       @Nullable Long principalId, @Nullable String principalName, Set<String> principalRoles) {
+    boolean external = authorizationConfiguration.principalMode() == PrincipalMode.EXTERNAL;
     return ImmutablePolarisCredential.builder()
         .principalId(principalId)
         .principalName(principalName)
         .principalRoles(principalRoles)
+        .external(external)
         .build();
-  }
-
-  /** The principal id, or null if unknown. Used for principal lookups by id. */
-  @Nullable
-  Long getPrincipalId();
-
-  /** The principal name, or null if unknown. Used for principal lookups by name. */
-  @Nullable
-  String getPrincipalName();
-
-  /** The principal roles, or empty if the principal has no roles. */
-  Set<String> getPrincipalRoles();
-
-  /**
-   * Whether the principal represented by this credential originates from an external identity
-   * provider instead of Polaris.
-   */
-  @Value.Default
-  default boolean isExternal() {
-    return false;
   }
 }

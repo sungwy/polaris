@@ -56,6 +56,7 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
   private final String catalogName;
   private final Resolver primaryResolver;
   private final PolarisDiagnostics diagnostics;
+  private final boolean useCallerPrincipalFromContext;
 
   private final Map<Object, Integer> pathLookup = new HashMap<>();
   private final List<ResolverPath> addedPaths = new ArrayList<>();
@@ -82,6 +83,16 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
       ResolverFactory resolverFactory,
       PolarisPrincipal principal,
       String catalogName) {
+    this(diagnostics, realmContext, resolverFactory, principal, catalogName, false);
+  }
+
+  public PolarisResolutionManifest(
+      PolarisDiagnostics diagnostics,
+      RealmContext realmContext,
+      ResolverFactory resolverFactory,
+      PolarisPrincipal principal,
+      String catalogName,
+      boolean useCallerPrincipalFromContext) {
     this.realmContext = realmContext;
     this.resolverFactory = resolverFactory;
     this.catalogName = catalogName;
@@ -89,6 +100,8 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
     this.diagnostics.checkNotNull(principal, "null_principal_for_resolution_manifest");
     this.principal = principal;
     this.primaryResolver = resolverFactory.createResolver(principal, catalogName);
+    this.useCallerPrincipalFromContext = useCallerPrincipalFromContext;
+    this.primaryResolver.setUseCallerPrincipalFromContext(useCallerPrincipalFromContext);
 
     // TODO: Make the rootContainer lookup no longer optional in the persistence store.
     // For now, we'll try to resolve the rootContainer as "optional", and only if we fail to find
@@ -133,12 +146,14 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
 
   public ResolverStatus resolveAll() {
     primaryResolverStatus = primaryResolver.resolveAll();
-    // TODO: This could be a race condition where a Principal is dropped after initial authn
-    // but before the resolution attempt; consider whether 403 forbidden is more appropriate.
-    diagnostics.check(
-        primaryResolverStatus.getStatus()
-            != ResolverStatus.StatusEnum.CALLER_PRINCIPAL_DOES_NOT_EXIST,
-        "caller_principal_does_not_exist_at_resolution_time");
+    if (!useCallerPrincipalFromContext) {
+      // TODO: This could be a race condition where a Principal is dropped after initial authn
+      // but before the resolution attempt; consider whether 403 forbidden is more appropriate.
+      diagnostics.check(
+          primaryResolverStatus.getStatus()
+              != ResolverStatus.StatusEnum.CALLER_PRINCIPAL_DOES_NOT_EXIST,
+          "caller_principal_does_not_exist_at_resolution_time");
+    }
 
     return primaryResolverStatus;
   }
@@ -189,6 +204,7 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
 
     // Run a single-use Resolver for this path.
     Resolver passthroughResolver = resolverFactory.createResolver(principal, catalogName);
+    passthroughResolver.setUseCallerPrincipalFromContext(useCallerPrincipalFromContext);
     passthroughResolver.addPath(requestedPath);
     ResolverStatus status = passthroughResolver.resolveAll();
 

@@ -35,7 +35,10 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.polaris.service.auth.AuthenticationRealmConfiguration;
 import org.apache.polaris.service.auth.AuthenticationType;
 import org.apache.polaris.service.auth.PolarisCredential;
+import org.apache.polaris.service.auth.internal.broker.ImmutableInternalPolarisToken;
 import org.apache.polaris.service.auth.internal.broker.TokenBroker;
+import org.apache.polaris.service.config.AuthorizationConfiguration;
+import org.apache.polaris.service.config.PrincipalMode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -48,6 +51,7 @@ public class InternalAuthenticationMechanismTest {
   private TokenBroker tokenBroker;
   private IdentityProviderManager identityProviderManager;
   private RoutingContext routingContext;
+  private AuthorizationConfiguration authorizationConfiguration;
 
   @BeforeEach
   public void setup() {
@@ -55,7 +59,10 @@ public class InternalAuthenticationMechanismTest {
     tokenBroker = mock(TokenBroker.class);
     identityProviderManager = mock(IdentityProviderManager.class);
     routingContext = mock(RoutingContext.class);
-    mechanism = new InternalAuthenticationMechanism(configuration, tokenBroker);
+    authorizationConfiguration = mock(AuthorizationConfiguration.class);
+    when(authorizationConfiguration.principalMode()).thenReturn(PrincipalMode.INTERNAL);
+    mechanism =
+        new InternalAuthenticationMechanism(configuration, tokenBroker, authorizationConfiguration);
   }
 
   @ParameterizedTest
@@ -148,6 +155,39 @@ public class InternalAuthenticationMechanismTest {
     assertThat(result.await().indefinitely()).isNull();
     verify(tokenBroker).verify("invalidToken");
     verify(identityProviderManager, never()).authenticate(any(InternalAuthenticationRequest.class));
+  }
+
+  @Test
+  public void testExternalPrincipalModeMarksCredentialExternal() {
+    when(configuration.type()).thenReturn(AuthenticationType.INTERNAL);
+    when(authorizationConfiguration.principalMode()).thenReturn(PrincipalMode.EXTERNAL);
+    when(routingContext.request()).thenReturn(mock(io.vertx.core.http.HttpServerRequest.class));
+    when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer validToken");
+
+    ImmutableInternalPolarisToken decodedToken =
+        ImmutableInternalPolarisToken.builder()
+            .principalId(1L)
+            .principalName("alice")
+            .clientId("client")
+            .scope("scope")
+            .build();
+    when(tokenBroker.verify("validToken")).thenReturn(decodedToken);
+
+    SecurityIdentity securityIdentity = mock(SecurityIdentity.class);
+    when(identityProviderManager.authenticate(any()))
+        .thenReturn(Uni.createFrom().item(securityIdentity));
+
+    mechanism.authenticate(routingContext, identityProviderManager).await().indefinitely();
+
+    verify(identityProviderManager)
+        .authenticate(
+            org.mockito.ArgumentMatchers.argThat(
+                request -> {
+                  if (!(request instanceof InternalAuthenticationRequest internalRequest)) {
+                    return false;
+                  }
+                  return internalRequest.getCredential().isExternal();
+                }));
   }
 
   @Test

@@ -1168,7 +1168,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
             callContext.getRealmContext(),
             resolverFactory,
             principal,
-            parentPath.getFirst().getName());
+            parentPath.getFirst().getName(),
+            false);
     siblingTables.forEach(
         tbl ->
             resolutionManifest.addPath(

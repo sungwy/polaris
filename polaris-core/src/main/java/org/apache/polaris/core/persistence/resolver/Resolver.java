@@ -105,6 +105,7 @@ public class Resolver {
   private final Map<Long, ResolvedPolarisEntity> resolvedEntriesById;
 
   private ResolverStatus resolverStatus;
+  private boolean useCallerPrincipalFromContext = false;
 
   // Set if we determine the reference catalog is a passthrough facade, which impacts
   // leniency of resolution of in-catalog paths
@@ -168,6 +169,10 @@ public class Resolver {
 
     // the resolver has not yet been called
     this.resolverStatus = null;
+  }
+
+  public void setUseCallerPrincipalFromContext(boolean useCallerPrincipalFromContext) {
+    this.useCallerPrincipalFromContext = useCallerPrincipalFromContext;
   }
 
   /**
@@ -247,7 +252,8 @@ public class Resolver {
     int count = 0;
     ResolverStatus status;
     do {
-      status = runResolvePass();
+      status =
+          useCallerPrincipalFromContext ? runResolvePassUsingContextPrincipal() : runResolvePass();
       count++;
     } while (status == null && ++count < 1000);
 
@@ -259,6 +265,41 @@ public class Resolver {
 
     // all has been resolved
     return status;
+  }
+
+  private ResolverStatus runResolvePassUsingContextPrincipal() {
+
+    this.resolvedCallerPrincipal = null;
+    this.resolvedReferenceCatalog = null;
+    if (this.resolvedCatalogRoles != null) {
+      this.resolvedCatalogRoles.clear();
+    }
+    this.resolvedCallerPrincipalRoles.clear();
+    this.resolvedPaths.clear();
+
+    List<ResolvedPolarisEntity> toValidate = new ArrayList<>();
+
+    ResolverStatus status = new ResolverStatus(ResolverStatus.StatusEnum.SUCCESS);
+    if (status.getStatus() == ResolverStatus.StatusEnum.SUCCESS
+        && this.referenceCatalogName != null) {
+      status = this.resolveReferenceCatalog(toValidate, this.referenceCatalogName);
+    }
+
+    if (status.getStatus() == ResolverStatus.StatusEnum.SUCCESS) {
+      status = this.resolveEntities(toValidate, this.entitiesToResolve);
+      if (status.getStatus() == ResolverStatus.StatusEnum.SUCCESS
+          && this.referenceCatalogName != null) {
+        status = this.resolvePaths(toValidate, this.pathsToResolve);
+      }
+    }
+
+    boolean validationSuccess = this.bulkValidate(toValidate);
+
+    if (validationSuccess) {
+      this.updateResolved();
+    }
+
+    return validationSuccess ? status : null;
   }
 
   public boolean getIsPassthroughFacade() {

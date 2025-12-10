@@ -194,8 +194,14 @@ public class ServiceProducers {
   @Produces
   @RequestScoped
   public ResolutionManifestFactory resolutionManifestFactory(
-      PolarisDiagnostics diagnostics, RealmContext realmContext, ResolverFactory resolverFactory) {
-    return new ResolutionManifestFactoryImpl(diagnostics, realmContext, resolverFactory);
+      PolarisDiagnostics diagnostics,
+      RealmContext realmContext,
+      ResolverFactory resolverFactory,
+      AuthorizationConfiguration authorizationConfiguration) {
+    boolean useCallerPrincipalFromContext =
+        authorizationConfiguration.principalMode() == PrincipalMode.EXTERNAL;
+    return new ResolutionManifestFactoryImpl(
+        diagnostics, realmContext, resolverFactory, useCallerPrincipalFromContext);
   }
 
   @Produces

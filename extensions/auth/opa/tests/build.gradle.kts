@@ -40,6 +40,10 @@ dependencies {
   // Test dependencies
   intTestImplementation("io.quarkus:quarkus-junit5")
   intTestImplementation("io.rest-assured:rest-assured")
+  intTestImplementation("io.quarkus:quarkus-oidc")
+  intTestImplementation("io.quarkus:quarkus-security")
+  intTestImplementation("io.quarkus:quarkus-vertx-http")
+  intTestImplementation(project(":polaris-core"))
 
   // Test container dependencies
   intTestImplementation(platform(libs.testcontainers.bom))

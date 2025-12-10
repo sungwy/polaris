@@ -22,6 +22,8 @@ import com.google.common.base.Throwables;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -37,6 +39,8 @@ import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadGrantsResult;
+import org.apache.polaris.service.config.AuthorizationConfiguration;
+import org.apache.polaris.service.config.PrincipalMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,8 +54,9 @@ import org.slf4j.LoggerFactory;
  * <p>It supports a pseudo-role {@value #PRINCIPAL_ROLE_ALL} that allows requesting all roles the
  * principal has been granted in the system.
  *
- * <p><strong>This authenticator is used in both internal and external authentication scenarios. For
- * now, it does not support federated principals that are not managed by Polaris.</strong>
+ * <p>This authenticator is used in both internal and external authentication scenarios, switching
+ * between database-backed principal resolution and in-memory principals derived from credential
+ * claims based on the configured principal mode.
  */
 @RequestScoped
 @Identifier("default")
@@ -82,15 +87,22 @@ public class DefaultAuthenticator implements Authenticator {
   private static final Logger LOGGER = LoggerFactory.getLogger(DefaultAuthenticator.class);
 
   private static final Set<String> ALL_ROLES_REQUESTED = Set.of();
+  private static final String PRINCIPAL_ID_PROPERTY = "principal_id";
+  private static final String PRINCIPAL_NAME_PROPERTY = "principal_name";
 
   @Inject PolarisMetaStoreManager metaStoreManager;
   @Inject CallContext callContext;
   @Inject PolarisDiagnostics diagnostics;
+  @Inject AuthorizationConfiguration authorizationConfiguration;
 
   @Override
   public PolarisPrincipal authenticate(PolarisCredential credentials) {
 
     LOGGER.debug("Resolving principal for credentials: {}", credentials);
+
+    if (authorizationConfiguration.principalMode() == PrincipalMode.EXTERNAL) {
+      return authenticateExternal(credentials);
+    }
 
     PrincipalEntity principalEntity = resolvePrincipalEntity(credentials);
     Set<String> principalRoles = resolvePrincipalRoles(credentials, principalEntity);
@@ -98,6 +110,40 @@ public class DefaultAuthenticator implements Authenticator {
 
     LOGGER.debug("Resolved principal: {}", polarisPrincipal);
     return polarisPrincipal;
+  }
+
+  private PolarisPrincipal authenticateExternal(PolarisCredential credentials) {
+    if (!credentials.isExternal()) {
+      LOGGER.warn(
+          "Credential is not marked as external while principal-mode=external: {}", credentials);
+    }
+    String principalName =
+        credentials.getPrincipalName() != null
+            ? credentials.getPrincipalName()
+            : credentials.getPrincipalId() != null
+                ? String.valueOf(credentials.getPrincipalId())
+                : null;
+    if (principalName == null) {
+      throw new NotAuthorizedException("Unable to authenticate");
+    }
+
+    Set<String> roles = credentials.getPrincipalRoles();
+    return PolarisPrincipal.of(
+        principalName,
+        createExternalPrincipalProperties(credentials),
+        roles == null ? Set.of() : roles);
+  }
+
+  private static Map<String, String> createExternalPrincipalProperties(
+      PolarisCredential credentials) {
+    Map<String, String> properties = new HashMap<>();
+    if (credentials.getPrincipalId() != null) {
+      properties.put(PRINCIPAL_ID_PROPERTY, String.valueOf(credentials.getPrincipalId()));
+    }
+    if (credentials.getPrincipalName() != null) {
+      properties.put(PRINCIPAL_NAME_PROPERTY, credentials.getPrincipalName());
+    }
+    return properties;
   }
 
   /**

@@ -16,17 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.config;
+package org.apache.polaris.service.auth.internal.broker;
 
-import io.smallrye.config.ConfigMapping;
-import io.smallrye.config.WithDefault;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@ConfigMapping(prefix = "polaris.authorization")
-public interface AuthorizationConfiguration {
+import org.junit.jupiter.api.Test;
 
-  @WithDefault("internal")
-  String type();
+class InternalPolarisTokenTest {
 
-  @WithDefault("internal")
-  PrincipalMode principalMode();
+  @Test
+  void shouldProduceInternalCredential() {
+    InternalPolarisToken token = InternalPolarisToken.of("alice", 42L, "client", "scope");
+
+    assertThat(token.isExternal()).isFalse();
+  }
 }

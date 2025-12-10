@@ -18,15 +18,14 @@
  */
 package org.apache.polaris.service.config;
 
-import io.smallrye.config.ConfigMapping;
-import io.smallrye.config.WithDefault;
+/** Defines how Polaris treats principals when building authorization state. */
+public enum PrincipalMode {
+  /** Principals originate inside Polaris and should be persisted/resolved from the DB. */
+  INTERNAL,
 
-@ConfigMapping(prefix = "polaris.authorization")
-public interface AuthorizationConfiguration {
-
-  @WithDefault("internal")
-  String type();
-
-  @WithDefault("internal")
-  PrincipalMode principalMode();
+  /**
+   * Principals are external to Polaris and must be built purely from credential claims without any
+   * database lookups.
+   */
+  EXTERNAL
 }

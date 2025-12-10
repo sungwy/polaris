@@ -39,7 +39,11 @@ import java.util.Set;
 import org.apache.polaris.service.auth.AuthenticationRealmConfiguration;
 import org.apache.polaris.service.auth.AuthenticationType;
 import org.apache.polaris.service.auth.PolarisCredential;
+import org.apache.polaris.service.auth.internal.broker.ImmutableInternalPolarisToken;
+import org.apache.polaris.service.auth.internal.broker.InternalPolarisToken;
 import org.apache.polaris.service.auth.internal.broker.TokenBroker;
+import org.apache.polaris.service.config.AuthorizationConfiguration;
+import org.apache.polaris.service.config.PrincipalMode;
 
 /**
  * A custom {@link HttpAuthenticationMechanism} that handles internal token authentication, that is,
@@ -57,12 +61,16 @@ class InternalAuthenticationMechanism implements HttpAuthenticationMechanism {
 
   @VisibleForTesting final AuthenticationRealmConfiguration configuration;
   private final TokenBroker tokenBroker;
+  private final AuthorizationConfiguration authorizationConfiguration;
 
   @Inject
   public InternalAuthenticationMechanism(
-      AuthenticationRealmConfiguration configuration, TokenBroker tokenBroker) {
+      AuthenticationRealmConfiguration configuration,
+      TokenBroker tokenBroker,
+      AuthorizationConfiguration authorizationConfiguration) {
     this.configuration = configuration;
     this.tokenBroker = tokenBroker;
+    this.authorizationConfiguration = authorizationConfiguration;
   }
 
   @Override
@@ -101,6 +109,19 @@ class InternalAuthenticationMechanism implements HttpAuthenticationMechanism {
 
     if (token == null) {
       return Uni.createFrom().nullItem();
+    }
+
+    if (authorizationConfiguration.principalMode() == PrincipalMode.EXTERNAL
+        && token instanceof InternalPolarisToken internalToken
+        && !internalToken.isExternal()) {
+      token =
+          ImmutableInternalPolarisToken.builder()
+              .principalName(internalToken.getPrincipalName())
+              .principalId(internalToken.getPrincipalId())
+              .clientId(internalToken.getClientId())
+              .scope(internalToken.getScope())
+              .external(true)
+              .build();
     }
 
     return identityProviderManager.authenticate(

@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -103,6 +104,45 @@ public class OpaPolarisAuthorizerTest {
       assertThat(input.has("action")).as("Input should have 'action' field").isTrue();
       assertThat(input.has("resource")).as("Input should have 'resource' field").isTrue();
       assertThat(input.has("context")).as("Input should have 'context' field").isTrue();
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  @Test
+  void testOpaInputContainsPrincipalAndRoles() throws Exception {
+    final String[] capturedRequestBody = new String[1];
+
+    HttpServer server = createServerWithRequestCapture(capturedRequestBody);
+    try {
+      URI policyUri =
+          URI.create(
+              "http://localhost:" + server.getAddress().getPort() + "/v1/data/polaris/allow");
+      OpaPolarisAuthorizer authorizer =
+          new OpaPolarisAuthorizer(
+              policyUri, HttpClients.createDefault(), new ObjectMapper(), null);
+
+      PolarisPrincipal principal =
+          PolarisPrincipal.of(
+              "external-id-42",
+              Map.of("principal_name", "external-user"),
+              Set.of("roleA", "roleB"));
+
+      authorizer.authorizeOrThrow(
+          principal,
+          Set.of(),
+          PolarisAuthorizableOperation.LIST_CATALOGS,
+          new PolarisResolvedPathWrapper(List.of()),
+          null);
+
+      JsonNode actor =
+          new ObjectMapper().readTree(capturedRequestBody[0]).path("input").path("actor");
+      List<String> roles =
+          StreamSupport.stream(actor.path("roles").spliterator(), false)
+              .map(JsonNode::asText)
+              .toList();
+      assertThat(actor.get("principal").asText()).isEqualTo("external-id-42");
+      assertThat(roles).containsExactlyInAnyOrder("roleA", "roleB");
     } finally {
       server.stop(0);
     }
