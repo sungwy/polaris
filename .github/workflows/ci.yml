@@ -108,9 +108,14 @@ jobs:
         with: *setup-java-vars
       - name: Prepare Gradle build cache
         uses: ./.github/actions/ci-incr-build-cache-prepare
+      - name: Debug JVM props
+        run: |
+          echo "JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+          echo "GRADLE_OPTS=$GRADLE_OPTS"
+          cat ~/.gradle/gradle.properties || true
       - name: Run Quarkus runtime tests
         env: *gradle_env_vars
-        run: ./gradlew :polaris-runtime-service:intTest --continue
+        run: ./gradlew :polaris-runtime-service:intTest --continue --no-build-cache --rerun-tasks
       - name: Save partial Gradle build cache
         uses: ./.github/actions/ci-incr-build-cache-save
       - name: Archive test results
