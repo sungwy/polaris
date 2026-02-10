@@ -52,6 +52,9 @@ public class ServerManager implements PolarisServerManager {
   }
 
   private static Integer getQuarkusTestPort() {
+    System.out.println(
+        "DEBUG quarkus.http.test-port system property: "
+            + System.getProperty("quarkus.http.test-port"));
     return Objects.requireNonNull(
         Integer.getInteger("quarkus.http.test-port"),
         "System property not set correctly: quarkus.http.test-port");
