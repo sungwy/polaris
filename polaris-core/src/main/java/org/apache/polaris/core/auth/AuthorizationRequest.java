@@ -67,6 +67,11 @@ public interface AuthorizationRequest {
     return getTargetBindings().stream().map(AuthorizationTargetBinding::getTarget).toList();
   }
 
+  /** Returns true if the request targets principal entities. */
+  default boolean hasPrincipalTarget() {
+    return hasSecurableType(PolarisEntityType.PRINCIPAL);
+  }
+
   /**
    * Returns secondary securables, if any.
    *
