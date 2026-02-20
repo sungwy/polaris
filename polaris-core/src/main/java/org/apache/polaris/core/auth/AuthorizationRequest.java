@@ -71,7 +71,6 @@ public interface AuthorizationRequest {
   default boolean hasPrincipalTarget() {
     return hasSecurableType(PolarisEntityType.PRINCIPAL);
   }
-
   /**
    * Returns secondary securables, if any.
    *
