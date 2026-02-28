@@ -142,6 +142,7 @@ import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
+import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -747,15 +748,49 @@ public class PolarisAuthorizerImpl implements PolarisAuthorizer {
   @Override
   public void resolveAuthorizationInputs(
       @Nonnull AuthorizationState authzState, @Nonnull AuthorizationRequest request) {
-    throw new UnsupportedOperationException(
-        "resolveAuthorizationInputs is not implemented yet for PolarisAuthorizerImpl");
+    authzState.getResolutionManifest().resolveAll();
   }
 
   @Override
   public AuthorizationDecision authorize(
       @Nonnull AuthorizationState authzState, @Nonnull AuthorizationRequest request) {
-    throw new UnsupportedOperationException(
-        "authorize is not implemented yet for PolarisAuthorizerImpl");
+    PolarisResolutionManifest resolutionManifest = authzState.getResolutionManifest();
+    // Delegate to legacy authorizeOrThrow() to preserve existing RBAC privilege
+    // evaluation semantics. A later cleanup can refactor internals to a
+    // decision-first approach and remove this exception-to-decision adaptation.
+    try {
+      authorizeOrThrow(
+          request.getPrincipal(),
+          resolutionManifest.getAllActivatedCatalogRoleAndPrincipalRoles(),
+          request.getOperation(),
+          resolvePathsOrNull(resolutionManifest, request.getTargets()),
+          resolvePathsOrNull(resolutionManifest, request.getSecondaries()));
+      return AuthorizationDecision.allow();
+    } catch (ForbiddenException e) {
+      return AuthorizationDecision.deny(e.getMessage());
+    }
+  }
+
+  @Nullable
+  private List<PolarisResolvedPathWrapper> resolvePathsOrNull(
+      PolarisResolutionManifest resolutionManifest, List<PolarisSecurable> securables) {
+    if (securables.isEmpty()) {
+      return null;
+    }
+
+    return securables.stream()
+        .map(
+            securable -> {
+              PolarisResolvedPathWrapper resolvedPath =
+                  resolutionManifest.getResolvedPath(securable, true);
+              Preconditions.checkState(
+                  resolvedPath != null,
+                  "Resolved path for securable is null for entityType=%s nameParts=%s",
+                  securable.getEntityType(),
+                  securable.getNameParts());
+              return resolvedPath;
+            })
+        .toList();
   }
 
   /**

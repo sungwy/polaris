@@ -44,9 +44,11 @@ import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.AuthorizationRequest;
 import org.apache.polaris.core.auth.AuthorizationState;
+import org.apache.polaris.core.auth.PathSegment;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecurable;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.extension.auth.opa.model.ImmutableActor;
@@ -98,18 +100,23 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
     this.objectMapper = objectMapper;
   }
 
+  /**
+   * Resolves authorization inputs using {@code resolveAll()} for phase-3 backward compatibility.
+   *
+   * <p>This scope is intentionally broad for now and will be narrowed in a future refactoring to
+   * resolve only the selections required by OPA authorization.
+   */
   @Override
   public void resolveAuthorizationInputs(
       @Nonnull AuthorizationState authzState, @Nonnull AuthorizationRequest request) {
-    throw new UnsupportedOperationException(
-        "resolveAuthorizationInputs is not implemented yet for OpaPolarisAuthorizer");
+    authzState.getResolutionManifest().resolveAll();
   }
 
   @Override
   public AuthorizationDecision authorize(
       @Nonnull AuthorizationState authzState, @Nonnull AuthorizationRequest request) {
-    throw new UnsupportedOperationException(
-        "authorize is not implemented yet for OpaPolarisAuthorizer");
+    return evaluateOpaDecision(
+        buildOpaAuthorizationInputFromRequest(request, request.getReferenceCatalogName()));
   }
 
   /**
@@ -158,10 +165,21 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
       @Nonnull PolarisAuthorizableOperation authzOp,
       @Nullable List<PolarisResolvedPathWrapper> targets,
       @Nullable List<PolarisResolvedPathWrapper> secondaries) {
-    boolean allowed = queryOpa(polarisPrincipal, activatedEntities, authzOp, targets, secondaries);
-    if (!allowed) {
-      throw new ForbiddenException("OPA denied authorization");
+    AuthorizationDecision decision =
+        evaluateOpaDecision(
+            buildOpaAuthorizationInputFromResolvedPaths(
+                polarisPrincipal, authzOp, targets, secondaries));
+    if (!decision.isAllowed()) {
+      throw new ForbiddenException("%s", decision.getMessage().orElse("OPA denied authorization"));
     }
+  }
+
+  private AuthorizationDecision evaluateOpaDecision(ImmutableOpaAuthorizationInput input) {
+    boolean allowed = queryOpa(input);
+    if (allowed) {
+      return AuthorizationDecision.allow();
+    }
+    return AuthorizationDecision.deny("OPA denied authorization");
   }
 
   /**
@@ -170,23 +188,14 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
    * <p>Builds the OPA input JSON, sends it via HTTP POST, and checks the 'allow' field in the
    * response. The request format follows the OPA REST API specification for data queries.
    *
-   * @param principal the principal requesting authorization
-   * @param entities the set of activated entities
-   * @param op the operation to authorize
-   * @param targets the list of main target entities
-   * @param secondaries the list of secondary entities (if any)
+   * @param input OPA authorization input model
    * @return true if OPA allows the operation, false otherwise
    * @throws RuntimeException if the OPA query fails
    * @see <a href="https://www.openpolicyagent.org/docs/rest-api">OPA REST API Documentation</a>
    */
-  private boolean queryOpa(
-      PolarisPrincipal principal,
-      Set<PolarisBaseEntity> entities,
-      PolarisAuthorizableOperation op,
-      List<PolarisResolvedPathWrapper> targets,
-      List<PolarisResolvedPathWrapper> secondaries) {
+  private boolean queryOpa(ImmutableOpaAuthorizationInput input) {
     try {
-      String inputJson = buildOpaInputJson(principal, entities, op, targets, secondaries);
+      String inputJson = buildOpaInputJson(input);
 
       // Create HTTP POST request using Apache HttpComponents
       HttpPost httpPost = new HttpPost(policyUri);
@@ -245,71 +254,62 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
    * configured OPA policies, which receive the raw principal information and must implement their
    * own role/permission logic.
    *
-   * @param principal the principal requesting authorization
-   * @param entities the set of activated entities
-   * @param op the operation to authorize
-   * @param targets the list of main target entities
-   * @param secondaries the list of secondary entities (if any)
+   * @param input OPA authorization input model
    * @return the OPA input JSON string
    * @throws IOException if JSON serialization fails
    */
-  private String buildOpaInputJson(
-      PolarisPrincipal principal,
-      Set<PolarisBaseEntity> entities,
-      PolarisAuthorizableOperation op,
-      List<PolarisResolvedPathWrapper> targets,
-      List<PolarisResolvedPathWrapper> secondaries)
-      throws IOException {
-
-    // Build actor from principal
-    var actor =
-        ImmutableActor.builder()
-            .principal(principal.getName())
-            .addAllRoles(principal.getRoles())
-            .build();
-
-    // Build resource entities for targets
-    List<ResourceEntity> targetEntities = new ArrayList<>();
-    if (targets != null) {
-      for (PolarisResolvedPathWrapper target : targets) {
-        ResourceEntity entity = buildResourceEntity(target);
-        if (entity != null) {
-          targetEntities.add(entity);
-        }
-      }
-    }
-
-    // Build resource entities for secondaries
-    List<ResourceEntity> secondaryEntities = new ArrayList<>();
-    if (secondaries != null) {
-      for (PolarisResolvedPathWrapper secondary : secondaries) {
-        ResourceEntity entity = buildResourceEntity(secondary);
-        if (entity != null) {
-          secondaryEntities.add(entity);
-        }
-      }
-    }
-
-    // Build resource
-    var resource =
-        ImmutableResource.builder().targets(targetEntities).secondaries(secondaryEntities).build();
-
-    // Build context
-    var context = ImmutableContext.builder().requestId(UUID.randomUUID().toString()).build();
-
-    // Build complete authorization input
-    var input =
-        ImmutableOpaAuthorizationInput.builder()
-            .actor(actor)
-            .action(op.name())
-            .resource(resource)
-            .context(context)
-            .build();
-
+  private String buildOpaInputJson(ImmutableOpaAuthorizationInput input) throws IOException {
     // Wrap in OPA request
     var request = ImmutableOpaRequest.builder().input(input).build();
-
     return objectMapper.writeValueAsString(request);
+  }
+
+  private ImmutableOpaAuthorizationInput buildOpaAuthorizationInputFromRequest(
+      AuthorizationRequest request, @Nullable String referenceCatalogName) {
+    return ImmutableOpaAuthorizationInput.builder()
+        .actor(buildActor(request.getPrincipal()))
+        .action(request.getOperation().name())
+        .resource(
+            buildResource(
+                toResourceEntitiesFromSecurables(request.getTargets(), referenceCatalogName),
+                toResourceEntitiesFromSecurables(request.getSecondaries(), referenceCatalogName)))
+        .context(buildContext())
+        .build();
+  }
+
+  private ImmutableOpaAuthorizationInput buildOpaAuthorizationInputFromResolvedPaths(
+      PolarisPrincipal principal,
+      PolarisAuthorizableOperation op,
+      @Nullable List<PolarisResolvedPathWrapper> targets,
+      @Nullable List<PolarisResolvedPathWrapper> secondaries) {
+    return ImmutableOpaAuthorizationInput.builder()
+        .actor(buildActor(principal))
+        .action(op.name())
+        .resource(
+            buildResource(
+                toResourceEntitiesFromResolvedPaths(targets),
+                toResourceEntitiesFromResolvedPaths(secondaries)))
+        .context(buildContext())
+        .build();
+  }
+
+  private ImmutableActor buildActor(PolarisPrincipal principal) {
+    return ImmutableActor.builder()
+        .principal(principal.getName())
+        .addAllRoles(principal.getRoles())
+        .build();
+  }
+
+  private ImmutableContext buildContext() {
+    return ImmutableContext.builder().requestId(UUID.randomUUID().toString()).build();
+  }
+
+  private ImmutableResource buildResource(
+      List<ResourceEntity> targets, List<ResourceEntity> secondaries) {
+    // Backward compatibility: keep the existing OPA input shape with separate target and
+    // secondary lists. Future work can align this with AuthorizationTargetBinding semantics
+    // using binding tuples like [(target, secondary), ...].
+    return ImmutableResource.builder().targets(targets).secondaries(secondaries).build();
   }
 
   /**
@@ -348,5 +348,71 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
     }
 
     return builder.build();
+  }
+
+  /**
+   * Builds a resource entity from an intent-level securable.
+   *
+   * @param securable the intent-level securable target
+   * @return the resource entity for OPA input
+   */
+  private ResourceEntity buildResourceEntity(
+      PolarisSecurable securable, @Nullable String referenceCatalogName) {
+    List<PathSegment> orderedSegments =
+        PathSegment.orderedParentToChildSegments(referenceCatalogName, securable);
+    if (orderedSegments.isEmpty()) {
+      return ImmutableResourceEntity.builder()
+          .type(securable.getEntityType().name())
+          .name("")
+          .build();
+    }
+    int leafIndex = orderedSegments.size() - 1;
+    PathSegment leaf = orderedSegments.get(leafIndex);
+    var builder =
+        ImmutableResourceEntity.builder().type(leaf.entityType().name()).name(leaf.name());
+    List<ResourceEntity> parents = new ArrayList<>();
+    for (int i = 0; i < leafIndex; i++) {
+      PathSegment parent = orderedSegments.get(i);
+      parents.add(
+          ImmutableResourceEntity.builder()
+              .type(parent.entityType().name())
+              .name(parent.name())
+              .build());
+    }
+    if (!parents.isEmpty()) {
+      builder.parents(parents);
+    }
+    return builder.build();
+  }
+
+  @Nonnull
+  private List<ResourceEntity> toResourceEntitiesFromResolvedPaths(
+      @Nullable List<PolarisResolvedPathWrapper> paths) {
+    if (paths == null || paths.isEmpty()) {
+      return List.of();
+    }
+
+    List<ResourceEntity> entities = new ArrayList<>();
+    for (PolarisResolvedPathWrapper path : paths) {
+      ResourceEntity entity = buildResourceEntity(path);
+      if (entity != null) {
+        entities.add(entity);
+      }
+    }
+    return entities;
+  }
+
+  @Nonnull
+  private List<ResourceEntity> toResourceEntitiesFromSecurables(
+      @Nullable List<PolarisSecurable> securables, @Nullable String referenceCatalogName) {
+    if (securables == null || securables.isEmpty()) {
+      return List.of();
+    }
+
+    List<ResourceEntity> entities = new ArrayList<>();
+    for (PolarisSecurable securable : securables) {
+      entities.add(buildResourceEntity(securable, referenceCatalogName));
+    }
+    return entities;
   }
 }

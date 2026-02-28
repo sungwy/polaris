@@ -19,6 +19,7 @@
 package org.apache.polaris.core.auth;
 
 import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.polaris.core.entity.PolarisEntityType;
@@ -37,10 +38,19 @@ public interface AuthorizationRequest {
       @Nonnull PolarisPrincipal principal,
       @Nonnull PolarisAuthorizableOperation operation,
       @Nonnull List<AuthorizationTargetBinding> targetBindings) {
+    return of(principal, operation, targetBindings, null);
+  }
+
+  static AuthorizationRequest of(
+      @Nonnull PolarisPrincipal principal,
+      @Nonnull PolarisAuthorizableOperation operation,
+      @Nonnull List<AuthorizationTargetBinding> targetBindings,
+      @Nullable String referenceCatalogName) {
     return ImmutableAuthorizationRequest.builder()
         .principal(principal)
         .operation(operation)
         .targetBindings(targetBindings)
+        .referenceCatalogName(referenceCatalogName)
         .build();
   }
 
@@ -55,6 +65,13 @@ public interface AuthorizationRequest {
   /** Returns the target/secondary target bindings. */
   @Nonnull
   List<AuthorizationTargetBinding> getTargetBindings();
+
+  /** Returns the request reference catalog name, if provided by the caller. */
+  @Nullable
+  @Value.Default
+  default String getReferenceCatalogName() {
+    return null;
+  }
 
   /**
    * Returns the primary target securables, if any.
@@ -71,6 +88,7 @@ public interface AuthorizationRequest {
   default boolean hasPrincipalTarget() {
     return hasSecurableType(PolarisEntityType.PRINCIPAL);
   }
+
   /**
    * Returns secondary securables, if any.
    *
