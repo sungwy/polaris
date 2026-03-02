@@ -55,6 +55,17 @@ public class PathSegmentTest {
   }
 
   @Test
+  void orderedParentToChildSegmentsDoesNotPrependCatalogForCatalogLeaf() {
+    PolarisSecurable catalog = PolarisSecurable.of(PolarisEntityType.CATALOG, List.of("catalogA"));
+
+    List<PathSegment> segments = PathSegment.orderedParentToChildSegments("catalogA", catalog);
+
+    assertThat(segments).hasSize(1);
+    assertThat(segments.get(0).entityType()).isEqualTo(PolarisEntityType.CATALOG);
+    assertThat(segments.get(0).name()).isEqualTo("catalogA");
+  }
+
+  @Test
   void orderedParentToChildSegmentsUsesNamespaceThenLeafRuleForInCatalogNameParts() {
     PolarisSecurable table =
         PolarisSecurable.of(PolarisEntityType.TABLE_LIKE, List.of("ns1", "table1"));

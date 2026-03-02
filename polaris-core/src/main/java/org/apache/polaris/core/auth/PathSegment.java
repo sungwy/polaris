@@ -78,12 +78,12 @@ public record PathSegment(PolarisEntityType entityType, String name) {
   }
 
   private static boolean isCatalogScopedType(PolarisEntityType entityType) {
-    PolarisEntityType current = entityType;
-    while (current != null) {
-      if (current == PolarisEntityType.CATALOG) {
+    PolarisEntityType parent = entityType.getParentType();
+    while (parent != null) {
+      if (parent == PolarisEntityType.CATALOG) {
         return true;
       }
-      current = current.getParentType();
+      parent = parent.getParentType();
     }
     return false;
   }

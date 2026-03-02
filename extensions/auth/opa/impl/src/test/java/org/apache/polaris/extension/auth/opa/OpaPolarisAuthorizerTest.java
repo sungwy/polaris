@@ -819,6 +819,10 @@ public class OpaPolarisAuthorizerTest {
     JsonNode target = root.path("input").path("resource").path("targets").get(0);
     assertThat(target.path("type").asText()).isEqualTo("CATALOG");
     assertThat(target.path("name").asText()).isEqualTo("catalog-1");
+    JsonNode parents = target.path("parents");
+    assertThat(parents.isMissingNode() || parents.isEmpty())
+        .as("Catalog target should not include self-parent")
+        .isTrue();
     // Intent-mode OPA payload intentionally omits ROOT from parent chains.
     assertThat(root.path("input").path("resource").toString()).doesNotContain("\"type\":\"ROOT\"");
   }
