@@ -218,13 +218,31 @@ public enum PolarisAuthorizableOperation {
   DROP_POLICY(POLICY_DROP),
   UPDATE_POLICY(POLICY_WRITE),
   LIST_POLICY(POLICY_LIST),
-  ATTACH_POLICY_TO_CATALOG(POLICY_ATTACH, CATALOG_ATTACH_POLICY),
-  ATTACH_POLICY_TO_NAMESPACE(POLICY_ATTACH, NAMESPACE_ATTACH_POLICY),
-  ATTACH_POLICY_TO_TABLE(POLICY_ATTACH, TABLE_ATTACH_POLICY),
-  DETACH_POLICY_FROM_CATALOG(POLICY_DETACH, CATALOG_DETACH_POLICY),
-  DETACH_POLICY_FROM_NAMESPACE(POLICY_DETACH, NAMESPACE_DETACH_POLICY),
-  DETACH_POLICY_FROM_TABLE(POLICY_DETACH, TABLE_DETACH_POLICY),
-  GET_APPLICABLE_POLICIES_ON_CATALOG(CATALOG_READ_PROPERTIES),
+  ATTACH_POLICY_TO_CATALOG(
+      POLICY_ATTACH,
+      CATALOG_ATTACH_POLICY,
+      PathEvaluationScope.CATALOG,
+      PathEvaluationScope.CATALOG),
+  ATTACH_POLICY_TO_NAMESPACE(
+      POLICY_ATTACH,
+      NAMESPACE_ATTACH_POLICY,
+      PathEvaluationScope.CATALOG,
+      PathEvaluationScope.CATALOG),
+  ATTACH_POLICY_TO_TABLE(
+      POLICY_ATTACH, TABLE_ATTACH_POLICY, PathEvaluationScope.CATALOG, PathEvaluationScope.CATALOG),
+  DETACH_POLICY_FROM_CATALOG(
+      POLICY_DETACH,
+      CATALOG_DETACH_POLICY,
+      PathEvaluationScope.CATALOG,
+      PathEvaluationScope.CATALOG),
+  DETACH_POLICY_FROM_NAMESPACE(
+      POLICY_DETACH,
+      NAMESPACE_DETACH_POLICY,
+      PathEvaluationScope.CATALOG,
+      PathEvaluationScope.CATALOG),
+  DETACH_POLICY_FROM_TABLE(
+      POLICY_DETACH, TABLE_DETACH_POLICY, PathEvaluationScope.CATALOG, PathEvaluationScope.CATALOG),
+  GET_APPLICABLE_POLICIES_ON_CATALOG(CATALOG_READ_PROPERTIES, PathEvaluationScope.CATALOG),
   GET_APPLICABLE_POLICIES_ON_NAMESPACE(NAMESPACE_READ_PROPERTIES),
   GET_APPLICABLE_POLICIES_ON_TABLE(TABLE_READ_PROPERTIES),
   ADD_POLICY_GRANT_TO_CATALOG_ROLE(POLICY_MANAGE_GRANTS_ON_SECURABLE),
@@ -250,21 +268,47 @@ public enum PolarisAuthorizableOperation {
 
   private final EnumSet<PolarisPrivilege> privilegesOnTarget;
   private final EnumSet<PolarisPrivilege> privilegesOnSecondary;
+  private final PathEvaluationScope targetPathEvaluationScope;
+  private final PathEvaluationScope secondaryPathEvaluationScope;
+
+  /** Scope of entity ancestry used to evaluate privilege grants for path-based entities. */
+  public enum PathEvaluationScope {
+    ROOT,
+    CATALOG
+  }
 
   /** Most common case -- single privilege on target entities. */
   PolarisAuthorizableOperation(PolarisPrivilege targetPrivilege) {
-    this(targetPrivilege == null ? null : EnumSet.of(targetPrivilege), null);
+    this(
+        targetPrivilege == null ? null : EnumSet.of(targetPrivilege),
+        null,
+        PathEvaluationScope.ROOT,
+        PathEvaluationScope.ROOT);
+  }
+
+  /** Single privilege on target entities with explicit target path evaluation scope. */
+  PolarisAuthorizableOperation(
+      PolarisPrivilege targetPrivilege, PathEvaluationScope targetPathEvaluationScope) {
+    this(
+        targetPrivilege == null ? null : EnumSet.of(targetPrivilege),
+        null,
+        targetPathEvaluationScope,
+        PathEvaluationScope.ROOT);
   }
 
   /** Require multiple simultaneous privileges on target entities. */
   PolarisAuthorizableOperation(EnumSet<PolarisPrivilege> privilegesOnTarget) {
-    this(privilegesOnTarget, null);
+    this(privilegesOnTarget, null, PathEvaluationScope.ROOT, PathEvaluationScope.ROOT);
   }
 
   /** Single privilege on target entities, multiple privileges on secondary. */
   PolarisAuthorizableOperation(
       PolarisPrivilege targetPrivilege, EnumSet<PolarisPrivilege> privilegesOnSecondary) {
-    this(targetPrivilege == null ? null : EnumSet.of(targetPrivilege), privilegesOnSecondary);
+    this(
+        targetPrivilege == null ? null : EnumSet.of(targetPrivilege),
+        privilegesOnSecondary,
+        PathEvaluationScope.ROOT,
+        PathEvaluationScope.ROOT);
   }
 
   /** Single privilege on target, single privilege on targetParent. */
@@ -272,19 +316,38 @@ public enum PolarisAuthorizableOperation {
       PolarisPrivilege targetPrivilege, PolarisPrivilege secondaryPrivilege) {
     this(
         targetPrivilege == null ? null : EnumSet.of(targetPrivilege),
-        secondaryPrivilege == null ? null : EnumSet.of(secondaryPrivilege));
+        secondaryPrivilege == null ? null : EnumSet.of(secondaryPrivilege),
+        PathEvaluationScope.ROOT,
+        PathEvaluationScope.ROOT);
   }
 
-  /** EnumSets on target, targetParent */
+  /** Single privilege on target and secondary with explicit operand path evaluation scopes. */
+  PolarisAuthorizableOperation(
+      PolarisPrivilege targetPrivilege,
+      PolarisPrivilege secondaryPrivilege,
+      PathEvaluationScope targetPathEvaluationScope,
+      PathEvaluationScope secondaryPathEvaluationScope) {
+    this(
+        targetPrivilege == null ? null : EnumSet.of(targetPrivilege),
+        secondaryPrivilege == null ? null : EnumSet.of(secondaryPrivilege),
+        targetPathEvaluationScope,
+        secondaryPathEvaluationScope);
+  }
+
+  /** EnumSets on target, targetParent with explicit operand path evaluation scopes. */
   PolarisAuthorizableOperation(
       EnumSet<PolarisPrivilege> privilegesOnTarget,
-      EnumSet<PolarisPrivilege> privilegesOnSecondary) {
+      EnumSet<PolarisPrivilege> privilegesOnSecondary,
+      PathEvaluationScope targetPathEvaluationScope,
+      PathEvaluationScope secondaryPathEvaluationScope) {
     this.privilegesOnTarget =
         privilegesOnTarget == null ? EnumSet.noneOf(PolarisPrivilege.class) : privilegesOnTarget;
     this.privilegesOnSecondary =
         privilegesOnSecondary == null
             ? EnumSet.noneOf(PolarisPrivilege.class)
             : privilegesOnSecondary;
+    this.targetPathEvaluationScope = targetPathEvaluationScope;
+    this.secondaryPathEvaluationScope = secondaryPathEvaluationScope;
   }
 
   public EnumSet<PolarisPrivilege> getPrivilegesOnTarget() {
@@ -293,5 +356,17 @@ public enum PolarisAuthorizableOperation {
 
   public EnumSet<PolarisPrivilege> getPrivilegesOnSecondary() {
     return privilegesOnSecondary;
+  }
+
+  /** Returns path-evaluation scope used for target privilege checks in native RBAC evaluation. */
+  public PathEvaluationScope getTargetPathEvaluationScope() {
+    return targetPathEvaluationScope;
+  }
+
+  /**
+   * Returns path-evaluation scope used for secondary privilege checks in native RBAC evaluation.
+   */
+  public PathEvaluationScope getSecondaryPathEvaluationScope() {
+    return secondaryPathEvaluationScope;
   }
 }

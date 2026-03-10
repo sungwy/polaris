@@ -133,6 +133,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.polaris.core.auth.PolarisAuthorizableOperation.PathEvaluationScope;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
@@ -143,6 +144,7 @@ import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
+import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -157,6 +159,11 @@ import org.slf4j.LoggerFactory;
  */
 public class PolarisAuthorizerImpl implements PolarisAuthorizer {
   private static final Logger LOGGER = LoggerFactory.getLogger(PolarisAuthorizerImpl.class);
+
+  private enum TargetType {
+    TARGET,
+    SECONDARY
+  }
 
   @VisibleForTesting
   static final SetMultimap<PolarisPrivilege, PolarisPrivilege> SUPER_PRIVILEGES =
@@ -748,7 +755,8 @@ public class PolarisAuthorizerImpl implements PolarisAuthorizer {
   @Override
   public void resolveAuthorizationInputs(
       @Nonnull AuthorizationState authzState, @Nonnull AuthorizationRequest request) {
-    authzState.getResolutionManifest().resolveAll();
+    PolarisResolutionManifest resolutionManifest = authzState.getResolutionManifest();
+    resolutionManifest.resolveAll();
   }
 
   @Override
@@ -759,38 +767,71 @@ public class PolarisAuthorizerImpl implements PolarisAuthorizer {
     // evaluation semantics. A later cleanup can refactor internals to a
     // decision-first approach and remove this exception-to-decision adaptation.
     try {
+      Preconditions.checkState(
+          !request.getTargets().isEmpty(), "AuthorizationRequest must contain at least one target");
+      List<PolarisResolvedPathWrapper> resolvedSecondaries =
+          request.getSecondaries().isEmpty()
+              ? null
+              : getResolvedSecurables(
+                  resolutionManifest,
+                  request.getOperation(),
+                  request.getSecondaries(),
+                  TargetType.SECONDARY);
       authorizeOrThrow(
           request.getPrincipal(),
           resolutionManifest.getAllActivatedCatalogRoleAndPrincipalRoles(),
           request.getOperation(),
-          resolvePathsOrNull(resolutionManifest, request.getTargets()),
-          resolvePathsOrNull(resolutionManifest, request.getSecondaries()));
+          getResolvedSecurables(
+              resolutionManifest, request.getOperation(), request.getTargets(), TargetType.TARGET),
+          resolvedSecondaries);
       return AuthorizationDecision.allow();
     } catch (ForbiddenException e) {
       return AuthorizationDecision.deny(e.getMessage());
     }
   }
 
-  @Nullable
-  private List<PolarisResolvedPathWrapper> resolvePathsOrNull(
-      PolarisResolutionManifest resolutionManifest, List<PolarisSecurable> securables) {
-    if (securables.isEmpty()) {
-      return null;
-    }
+  private List<PolarisResolvedPathWrapper> getResolvedSecurables(
+      PolarisResolutionManifest resolutionManifest,
+      PolarisAuthorizableOperation operation,
+      List<PolarisSecurable> securables,
+      TargetType targetType) {
+    boolean prependRootContainer =
+        pathEvaluationScopeFor(operation, targetType) == PathEvaluationScope.ROOT;
 
     return securables.stream()
         .map(
             securable -> {
-              PolarisResolvedPathWrapper resolvedPath =
-                  resolutionManifest.getResolvedPath(securable, true);
+              PolarisResolvedPathWrapper resolvedSecurable =
+                  getResolvedSecurable(resolutionManifest, securable, prependRootContainer);
               Preconditions.checkState(
-                  resolvedPath != null,
+                  resolvedSecurable != null,
                   "Resolved path for securable is null for entityType=%s nameParts=%s",
                   securable.getEntityType(),
                   securable.getNameParts());
-              return resolvedPath;
+              return resolvedSecurable;
             })
         .toList();
+  }
+
+  private PolarisResolvedPathWrapper getResolvedSecurable(
+      PolarisResolutionManifest resolutionManifest,
+      PolarisSecurable securable,
+      boolean prependRootContainer) {
+    if (securable.getEntityType().isTopLevel()) {
+      String entityName = securable.getNameParts().get(securable.getNameParts().size() - 1);
+      return resolutionManifest.getResolvedTopLevelEntity(entityName, securable.getEntityType());
+    }
+    return resolutionManifest.getResolvedPath(
+        ResolvedPathKey.of(securable.getNameParts(), securable.getEntityType()),
+        prependRootContainer);
+  }
+
+  private PathEvaluationScope pathEvaluationScopeFor(
+      PolarisAuthorizableOperation operation, TargetType targetType) {
+    return switch (targetType) {
+      case TARGET -> operation.getTargetPathEvaluationScope();
+      case SECONDARY -> operation.getSecondaryPathEvaluationScope();
+    };
   }
 
   /**
