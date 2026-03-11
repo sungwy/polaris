@@ -19,6 +19,7 @@
 package org.apache.polaris.core.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.polaris.core.entity.PolarisEntityType;
@@ -66,16 +67,27 @@ public class PathSegmentTest {
   }
 
   @Test
-  void orderedParentToChildSegmentsUsesNamespaceThenLeafRuleForInCatalogNameParts() {
+  void orderedParentToChildSegmentsThrowsWhenCatalogScopedAndReferenceCatalogMissing() {
     PolarisSecurable table =
         PolarisSecurable.of(PolarisEntityType.TABLE_LIKE, List.of("ns1", "table1"));
 
-    List<PathSegment> segments = PathSegment.orderedParentToChildSegments(null, table);
+    assertThatThrownBy(() -> PathSegment.orderedParentToChildSegments(null, table))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("referenceCatalogName must be non-empty");
+    assertThatThrownBy(() -> PathSegment.orderedParentToChildSegments("  ", table))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("referenceCatalogName must be non-empty");
+  }
 
-    assertThat(segments).hasSize(2);
-    assertThat(segments.get(0).entityType()).isEqualTo(PolarisEntityType.NAMESPACE);
-    assertThat(segments.get(0).name()).isEqualTo("ns1");
-    assertThat(segments.get(1).entityType()).isEqualTo(PolarisEntityType.TABLE_LIKE);
-    assertThat(segments.get(1).name()).isEqualTo("table1");
+  @Test
+  void orderedParentToChildSegmentsAllowsMissingReferenceCatalogForNonCatalogScopedSecurable() {
+    PolarisSecurable principal =
+        PolarisSecurable.of(PolarisEntityType.PRINCIPAL, List.of("principalA"));
+
+    List<PathSegment> segments = PathSegment.orderedParentToChildSegments(null, principal);
+
+    assertThat(segments).hasSize(1);
+    assertThat(segments.get(0).entityType()).isEqualTo(PolarisEntityType.PRINCIPAL);
+    assertThat(segments.get(0).name()).isEqualTo("principalA");
   }
 }

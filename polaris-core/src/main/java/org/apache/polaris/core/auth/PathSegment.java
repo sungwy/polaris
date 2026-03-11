@@ -18,6 +18,7 @@
  */
 package org.apache.polaris.core.auth;
 
+import com.google.common.base.Preconditions;
 import jakarta.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,11 +66,14 @@ public record PathSegment(PolarisEntityType entityType, String name) {
   public static List<PathSegment> orderedParentToChildSegments(
       @Nullable String referenceCatalogName, PolarisSecurable securable) {
     List<PathSegment> inCatalog = inCatalogSegments(securable);
-    if (!isCatalogScopedType(securable.getEntityType())
-        || referenceCatalogName == null
-        || referenceCatalogName.isBlank()) {
+    if (!isCatalogScopedType(securable.getEntityType())) {
       return inCatalog;
     }
+    Preconditions.checkArgument(
+        referenceCatalogName != null && !referenceCatalogName.isBlank(),
+        "referenceCatalogName must be non-empty for catalog-scoped securable entityType=%s nameParts=%s",
+        securable.getEntityType(),
+        securable.getNameParts());
 
     List<PathSegment> full = new ArrayList<>(inCatalog.size() + 1);
     full.add(new PathSegment(PolarisEntityType.CATALOG, referenceCatalogName));
