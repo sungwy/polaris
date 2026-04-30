@@ -108,6 +108,8 @@ import org.apache.polaris.core.persistence.TransactionWorkspaceMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
+import org.apache.polaris.core.persistence.resolver.Resolvable;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.Resolver;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
@@ -232,6 +234,19 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
 
   private CatalogEntity getResolvedCatalogEntity() {
     CatalogEntity catalogEntity = resolutionManifest.getResolvedCatalogEntity();
+    diagnostics().checkNotNull(catalogEntity, "No catalog available");
+    return catalogEntity;
+  }
+
+  private CatalogEntity resolveCatalogEntityForConfig() {
+    PolarisResolutionManifest configResolutionManifest = newResolutionManifest();
+    ResolverStatus status =
+        configResolutionManifest.resolveSelections(EnumSet.of(Resolvable.REFERENCE_CATALOG));
+    if (status.getStatus() == ResolverStatus.StatusEnum.ENTITY_COULD_NOT_BE_RESOLVED) {
+      throw new NotFoundException("Catalog not found: %s", catalogName());
+    }
+
+    CatalogEntity catalogEntity = configResolutionManifest.getResolvedCatalogEntity();
     diagnostics().checkNotNull(catalogEntity, "No catalog available");
     return catalogEntity;
   }
@@ -1019,13 +1034,8 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
 
   public LoadTableResponse updateTable(
       TableIdentifier tableIdentifier, UpdateTableRequest request) {
-
-    // Ensure resolution manifest is initialized so we can determine whether
-    // fine grained authz model is enabled at the catalog level
-    ensureResolutionManifestForTable(tableIdentifier);
-
     EnumSet<PolarisAuthorizableOperation> authorizableOperations =
-        getUpdateTableAuthorizableOperations(request);
+        getUpdateTableAuthorizableOperations(request, resolveCatalogEntityForConfig());
 
     authorizeBasicTableLikeOperationsOrThrow(
         authorizableOperations, PolarisEntitySubType.ICEBERG_TABLE, tableIdentifier);
@@ -1327,12 +1337,11 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
   }
 
   private EnumSet<PolarisAuthorizableOperation> getUpdateTableAuthorizableOperations(
-      UpdateTableRequest request) {
+      UpdateTableRequest request, CatalogEntity catalogEntity) {
     boolean useFineGrainedOperations =
         realmConfig()
             .getConfig(
-                FeatureConfiguration.ENABLE_FINE_GRAINED_UPDATE_TABLE_PRIVILEGES,
-                getResolvedCatalogEntity());
+                FeatureConfiguration.ENABLE_FINE_GRAINED_UPDATE_TABLE_PRIVILEGES, catalogEntity);
 
     if (useFineGrainedOperations) {
       EnumSet<PolarisAuthorizableOperation> actions =

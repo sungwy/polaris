@@ -156,6 +156,10 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
     return primaryResolverStatus;
   }
 
+  public @Nullable ResolverStatus getPrimaryResolverStatus() {
+    return primaryResolverStatus;
+  }
+
   public boolean getIsPassthroughFacade() {
     return primaryResolver.getIsPassthroughFacade();
   }
