@@ -29,11 +29,10 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.polaris.core.auth.AuthorizationRequest;
+import org.apache.polaris.core.auth.AuthorizationState;
 import org.apache.polaris.core.auth.AuthorizationTargetBinding;
-import org.apache.polaris.core.auth.ImmutablePolarisSecurable;
-import org.apache.polaris.core.auth.PathSegment;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
-import org.apache.polaris.core.auth.PolarisSecurable;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
@@ -45,6 +44,7 @@ import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.policy.exceptions.NoSuchPolicyException;
 import org.apache.polaris.immutables.PolarisImmutable;
 import org.apache.polaris.service.catalog.common.CatalogHandler;
+import org.apache.polaris.service.catalog.common.PolarisSecurableMapper;
 import org.apache.polaris.service.types.AttachPolicyRequest;
 import org.apache.polaris.service.types.CreatePolicyRequest;
 import org.apache.polaris.service.types.DetachPolicyRequest;
@@ -140,42 +140,6 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
         .build();
   }
 
-  private PolarisSecurable policySecurable(PolicyIdentifier identifier) {
-    ImmutablePolarisSecurable.Builder builder =
-        ImmutablePolarisSecurable.builder()
-            .addPathSegment(new PathSegment(PolarisEntityType.CATALOG, catalogName()));
-    Arrays.stream(identifier.namespace().levels())
-        .map(level -> new PathSegment(PolarisEntityType.NAMESPACE, level))
-        .forEach(builder::addPathSegment);
-    return builder.addPathSegment(new PathSegment(PolarisEntityType.POLICY, identifier.name()))
-        .build();
-  }
-
-  private PolarisSecurable policyAttachmentTargetSecurable(PolicyAttachmentTarget target) {
-    ImmutablePolarisSecurable.Builder builder =
-        ImmutablePolarisSecurable.builder()
-            .addPathSegment(new PathSegment(PolarisEntityType.CATALOG, catalogName()));
-    switch (target.getType()) {
-      case CATALOG:
-        return PolarisSecurable.of(new PathSegment(PolarisEntityType.CATALOG, catalogName()));
-      case NAMESPACE:
-        target.getPath().stream()
-            .map(level -> new PathSegment(PolarisEntityType.NAMESPACE, level))
-            .forEach(builder::addPathSegment);
-        return builder.build();
-      case TABLE_LIKE:
-        List<String> path = target.getPath();
-        path.subList(0, path.size() - 1).stream()
-            .map(level -> new PathSegment(PolarisEntityType.NAMESPACE, level))
-            .forEach(builder::addPathSegment);
-        return builder.addPathSegment(
-                new PathSegment(PolarisEntityType.TABLE_LIKE, path.get(path.size() - 1)))
-            .build();
-      default:
-        throw new IllegalArgumentException("Unsupported target type: " + target.getType());
-    }
-  }
-
   private void authorizeBasicPolicyOperationOrThrow(
       PolarisAuthorizableOperation op, PolicyIdentifier identifier) {
     resolutionManifest = newResolutionManifest();
@@ -184,8 +148,17 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
             PolarisCatalogHelpers.identifierToList(identifier.namespace(), identifier.name()),
             PolarisEntityType.POLICY,
             true /* optional */));
-    resolveAuthorizationInputs(
-        op, AuthorizationTargetBinding.of(policySecurable(identifier), null));
+    AuthorizationState authzState = new AuthorizationState();
+    authzState.setResolutionManifest(resolutionManifest);
+    authorizer()
+        .resolveAuthorizationInputs(
+            authzState,
+            AuthorizationRequest.of(
+                polarisPrincipal(),
+                op,
+                List.of(
+                    AuthorizationTargetBinding.of(
+                        PolarisSecurableMapper.policy(catalogName(), identifier), null))));
 
     PolarisResolvedPathWrapper target =
         resolutionManifest.getResolvedPath(
@@ -230,10 +203,17 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
 
   private void authorizeBasicCatalogOperationOrThrow(PolarisAuthorizableOperation op) {
     resolutionManifest = newResolutionManifest();
-    resolveAuthorizationInputs(
-        op,
-        AuthorizationTargetBinding.of(
-            PolarisSecurable.of(new PathSegment(PolarisEntityType.CATALOG, catalogName())), null));
+    AuthorizationState authzState = new AuthorizationState();
+    authzState.setResolutionManifest(resolutionManifest);
+    authorizer()
+        .resolveAuthorizationInputs(
+            authzState,
+            AuthorizationRequest.of(
+                polarisPrincipal(),
+                op,
+                List.of(
+                    AuthorizationTargetBinding.of(
+                        PolarisSecurableMapper.catalog(catalogName()), null))));
 
     PolarisResolvedPathWrapper targetCatalog =
         resolutionManifest.getResolvedReferenceCatalogEntity();
@@ -280,10 +260,18 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
 
     PolarisAuthorizableOperation requestedOp =
         determineRequestedPolicyMappingOperation(target, isAttach);
-    resolveAuthorizationInputs(
-        requestedOp,
-        AuthorizationTargetBinding.of(
-            policySecurable(identifier), policyAttachmentTargetSecurable(target)));
+    AuthorizationState authzState = new AuthorizationState();
+    authzState.setResolutionManifest(resolutionManifest);
+    authorizer()
+        .resolveAuthorizationInputs(
+            authzState,
+            AuthorizationRequest.of(
+                polarisPrincipal(),
+                requestedOp,
+                List.of(
+                    AuthorizationTargetBinding.of(
+                        PolarisSecurableMapper.policy(catalogName(), identifier),
+                        PolarisSecurableMapper.policyAttachmentTarget(catalogName(), target)))));
     ResolverStatus status = resolutionManifest.getPrimaryResolverStatus();
 
     throwNotFoundExceptionIfFailToResolve(status, identifier);

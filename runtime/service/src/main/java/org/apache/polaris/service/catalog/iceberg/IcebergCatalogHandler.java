@@ -1034,6 +1034,8 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
 
   public LoadTableResponse updateTable(
       TableIdentifier tableIdentifier, UpdateTableRequest request) {
+    // Resolve only the reference catalog up front so operation deduction can read catalog-scoped
+    // config without forcing full authorization resolution before the authorizer runs.
     EnumSet<PolarisAuthorizableOperation> authorizableOperations =
         getUpdateTableAuthorizableOperations(request, resolveCatalogEntityForConfig());
 
