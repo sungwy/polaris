@@ -78,9 +78,11 @@ import org.apache.polaris.core.admin.model.ViewPrivilege;
 import org.apache.polaris.core.auth.AuthorizationRequest;
 import org.apache.polaris.core.auth.AuthorizationState;
 import org.apache.polaris.core.auth.AuthorizationTargetBinding;
+import org.apache.polaris.core.auth.PathSegment;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecurable;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
@@ -269,7 +271,8 @@ public class PolarisAdminService {
             op,
             List.of(
                 AuthorizationTargetBinding.of(
-                    PolarisSecurableMapper.topLevel(entityType, topLevelEntityName), null))));
+                    PolarisSecurable.of(new PathSegment(entityType, topLevelEntityName)),
+                    null))));
     ResolverStatus status = resolutionManifest.getPrimaryResolverStatus();
     if (status.getStatus() == ResolverStatus.StatusEnum.ENTITY_COULD_NOT_BE_RESOLVED) {
       throw new NotFoundException(
@@ -361,8 +364,8 @@ public class PolarisAdminService {
             List.of(
                 AuthorizationTargetBinding.of(
                     null,
-                    PolarisSecurableMapper.topLevel(
-                        PolarisEntityType.PRINCIPAL_ROLE, principalRoleName)))));
+                    PolarisSecurable.of(
+                        new PathSegment(PolarisEntityType.PRINCIPAL_ROLE, principalRoleName))))));
     ResolverStatus status = resolutionManifest.getPrimaryResolverStatus();
 
     if (status.getStatus() == ResolverStatus.StatusEnum.ENTITY_COULD_NOT_BE_RESOLVED) {
@@ -402,10 +405,10 @@ public class PolarisAdminService {
             op,
             List.of(
                 AuthorizationTargetBinding.of(
-                    PolarisSecurableMapper.topLevel(
-                        PolarisEntityType.PRINCIPAL_ROLE, principalRoleName),
-                    PolarisSecurableMapper.topLevel(
-                        PolarisEntityType.PRINCIPAL, principalName)))));
+                    PolarisSecurable.of(
+                        new PathSegment(PolarisEntityType.PRINCIPAL_ROLE, principalRoleName)),
+                    PolarisSecurable.of(
+                        new PathSegment(PolarisEntityType.PRINCIPAL, principalName))))));
     ResolverStatus status = resolutionManifest.getPrimaryResolverStatus();
 
     if (status.getStatus() == ResolverStatus.StatusEnum.ENTITY_COULD_NOT_BE_RESOLVED) {
@@ -448,8 +451,8 @@ public class PolarisAdminService {
             List.of(
                 AuthorizationTargetBinding.of(
                     PolarisSecurableMapper.catalogRole(catalogName, catalogRoleName),
-                    PolarisSecurableMapper.topLevel(
-                        PolarisEntityType.PRINCIPAL_ROLE, principalRoleName)))));
+                    PolarisSecurable.of(
+                        new PathSegment(PolarisEntityType.PRINCIPAL_ROLE, principalRoleName))))));
     ResolverStatus status = resolutionManifest.getPrimaryResolverStatus();
 
     if (status.getStatus() == ResolverStatus.StatusEnum.ENTITY_COULD_NOT_BE_RESOLVED) {
@@ -492,7 +495,7 @@ public class PolarisAdminService {
             op,
             List.of(
                 AuthorizationTargetBinding.of(
-                    PolarisSecurableMapper.topLevel(PolarisEntityType.CATALOG, catalogName),
+                    PolarisSecurable.of(new PathSegment(PolarisEntityType.CATALOG, catalogName)),
                     PolarisSecurableMapper.catalogRole(catalogName, catalogRoleName)))));
     ResolverStatus status = resolutionManifest.getPrimaryResolverStatus();
 

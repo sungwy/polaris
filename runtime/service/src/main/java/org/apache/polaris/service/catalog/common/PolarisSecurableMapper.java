@@ -29,12 +29,12 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.service.types.PolicyAttachmentTarget;
 import org.apache.polaris.service.types.PolicyIdentifier;
 
+/**
+ * Utility mapper for translating Polaris domain identifiers into canonical {@link
+ * org.apache.polaris.core.auth.PolarisSecurable} paths.
+ */
 public final class PolarisSecurableMapper {
   private PolarisSecurableMapper() {}
-
-  public static PolarisSecurable topLevel(PolarisEntityType entityType, String entityName) {
-    return PolarisSecurable.of(new PathSegment(entityType, entityName));
-  }
 
   public static PolarisSecurable catalog(String catalogName) {
     return PolarisSecurable.of(new PathSegment(PolarisEntityType.CATALOG, catalogName));
