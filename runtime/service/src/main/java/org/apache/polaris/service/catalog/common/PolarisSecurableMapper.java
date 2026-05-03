@@ -64,7 +64,8 @@ public final class PolarisSecurableMapper {
     Arrays.stream(identifier.namespace().levels())
         .map(level -> new PathSegment(PolarisEntityType.NAMESPACE, level))
         .forEach(builder::addPathSegment);
-    return builder.addPathSegment(new PathSegment(PolarisEntityType.TABLE_LIKE, identifier.name()))
+    return builder
+        .addPathSegment(new PathSegment(PolarisEntityType.TABLE_LIKE, identifier.name()))
         .build();
   }
 
@@ -75,7 +76,8 @@ public final class PolarisSecurableMapper {
     Arrays.stream(identifier.namespace().levels())
         .map(level -> new PathSegment(PolarisEntityType.NAMESPACE, level))
         .forEach(builder::addPathSegment);
-    return builder.addPathSegment(new PathSegment(PolarisEntityType.POLICY, identifier.name()))
+    return builder
+        .addPathSegment(new PathSegment(PolarisEntityType.POLICY, identifier.name()))
         .build();
   }
 
@@ -97,7 +99,8 @@ public final class PolarisSecurableMapper {
         path.subList(0, path.size() - 1).stream()
             .map(level -> new PathSegment(PolarisEntityType.NAMESPACE, level))
             .forEach(builder::addPathSegment);
-        return builder.addPathSegment(
+        return builder
+            .addPathSegment(
                 new PathSegment(PolarisEntityType.TABLE_LIKE, path.get(path.size() - 1)))
             .build();
       default:

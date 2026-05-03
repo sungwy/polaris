@@ -128,8 +128,8 @@ import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.core.storage.StorageLocation;
 import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
 import org.apache.polaris.core.storage.azure.AzureStorageConfigurationInfo;
-import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.catalog.common.PolarisSecurableMapper;
+import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.types.PolicyIdentifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -271,8 +271,7 @@ public class PolarisAdminService {
             op,
             List.of(
                 AuthorizationTargetBinding.of(
-                    PolarisSecurable.of(new PathSegment(entityType, topLevelEntityName)),
-                    null))));
+                    PolarisSecurable.of(new PathSegment(entityType, topLevelEntityName)), null))));
     ResolverStatus status = resolutionManifest.getPrimaryResolverStatus();
     if (status.getStatus() == ResolverStatus.StatusEnum.ENTITY_COULD_NOT_BE_RESOLVED) {
       throw new NotFoundException(
