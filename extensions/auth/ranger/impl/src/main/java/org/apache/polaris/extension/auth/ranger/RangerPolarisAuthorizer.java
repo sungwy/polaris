@@ -80,10 +80,16 @@ public class RangerPolarisAuthorizer implements PolarisAuthorizer {
     this.realmConextIdentifier = aRealmContext.getRealmIdentifier();
   }
 
+  /**
+   * Resolves authorization inputs using {@code resolveAll()} for backward compatibility.
+   *
+   * <p>This scope is intentionally broad for now and will be narrowed in a future refactoring to
+   * resolve only the selections required by Ranger authorization.
+   */
   @Override
   public void resolveAuthorizationInputs(
       @Nonnull AuthorizationState authzState, @Nonnull AuthorizationRequest request) {
-    throw new UnsupportedOperationException("resolveAuthorizationInputs is not implemented yet");
+    authzState.getResolutionManifest().resolveAll();
   }
 
   @Override
