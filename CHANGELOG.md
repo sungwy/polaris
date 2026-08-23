@@ -42,6 +42,10 @@ request adding CHANGELOG notes for breaking (!) changes and possibly other secti
 
 ### Changes
 
+- OPA authorization now evaluates batched collection requests as multiple intent-level OPA queries
+  instead of a single query containing the full `input.resource.targets` set. Policies that reason
+  over the complete target set for collection-style operations should be updated accordingly.
+
 ### Deprecations
 
 ### Fixes
