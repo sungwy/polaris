@@ -842,6 +842,13 @@ public class PolarisAuthorizerImpl implements PolarisAuthorizer {
           resolvedTargets,
           resolvedSecondaries);
       return AuthorizationDecision.allow();
+    } catch (AuthorizationPreConditions.ClientVisibleForbiddenException e) {
+      LOGGER.debug(
+          "Authorization denied for principalName {} intent {}",
+          polarisPrincipal.getName(),
+          intent,
+          e);
+      return AuthorizationDecision.denyWithClientMessage(e.getMessage());
     } catch (ForbiddenException e) {
       LOGGER.debug(
           "Authorization denied for principalName {} intent {}",

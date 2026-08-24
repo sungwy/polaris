@@ -206,6 +206,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
                 authzTestsBuilder("listNamespaces (before rotation)")
                     .action(() -> handler.get().listNamespaces(Namespace.of()))
                     .principalName(principalName)
+                    .expectedDeniedMessage("Principal must rotate credentials first")
                     .shouldFailWithAnyPrivilege()
                     .createTests(),
                 authzTestsBuilder("createNamespace (before rotation)")
@@ -216,11 +217,13 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
                                 .createNamespace(
                                     CreateNamespaceRequest.builder().withNamespace(ns3).build()))
                     .principalName(principalName)
+                    .expectedDeniedMessage("Principal must rotate credentials first")
                     .shouldFailWithAnyPrivilege()
                     .createTests(),
                 authzTestsBuilder("listTables (before rotation)")
                     .action(() -> handler.get().listTables(NS1, null, null))
                     .principalName(principalName)
+                    .expectedDeniedMessage("Principal must rotate credentials first")
                     .shouldFailWithAnyPrivilege()
                     .createTests())
             .flatMap(s -> s);
@@ -319,7 +322,8 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     Assertions.assertThatThrownBy(
             () -> newHandler(Set.of(PRINCIPAL_ROLE2)).listNamespaces(Namespace.of()))
         .isInstanceOf(ForbiddenException.class)
-        .hasMessageContaining("is not authorized");
+        .hasMessage("Authorization denied")
+        .hasMessageNotContaining(PRINCIPAL_ROLE2);
 
     // If we revoke, then it should fail again even with all principal roles activated.
     assertSuccess(

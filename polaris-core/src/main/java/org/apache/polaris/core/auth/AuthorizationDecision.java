@@ -40,16 +40,29 @@ public interface AuthorizationDecision {
     return ImmutableAuthorizationDecision.of(false, Optional.ofNullable(message));
   }
 
+  static AuthorizationDecision denyWithClientMessage(@Nullable String message) {
+    return ImmutableAuthorizationDecision.builder()
+        .allowed(false)
+        .message(Optional.ofNullable(message))
+        .clientMessage(Optional.ofNullable(message))
+        .build();
+  }
+
   @Value.Parameter(order = 1)
   boolean isAllowed();
 
   @Value.Parameter(order = 2)
   Optional<String> getMessage();
 
+  @Value.Default
+  default Optional<String> getClientMessage() {
+    return Optional.empty();
+  }
+
   default void throwIfDenied() {
     if (!isAllowed()) {
       getMessage().ifPresent(message -> LOGGER.debug("Authorization denied: {}", message));
-      throw new ForbiddenException("Authorization denied");
+      throw new ForbiddenException("%s", getClientMessage().orElse("Authorization denied"));
     }
   }
 }
