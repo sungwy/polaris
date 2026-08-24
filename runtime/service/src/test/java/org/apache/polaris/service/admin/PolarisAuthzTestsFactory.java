@@ -108,11 +108,6 @@ public abstract class PolarisAuthzTestsFactory {
   }
 
   @Value.Default
-  protected String expectedDeniedMessage() {
-    return "Authorization denied";
-  }
-
-  @Value.Default
   protected Function<PolarisPrivilege, PrivilegeResult> grantAction() {
     return privilege ->
         adminServiceSupplier()
@@ -206,9 +201,6 @@ public abstract class PolarisAuthzTestsFactory {
 
     @CanIgnoreReturnValue
     public abstract Builder useFreshRequestContext(boolean useFreshRequestContext);
-
-    @CanIgnoreReturnValue
-    public abstract Builder expectedDeniedMessage(String expectedDeniedMessage);
 
     @CanIgnoreReturnValue
     public abstract Builder grantAction(Function<PolarisPrivilege, PrivilegeResult> grantAction);
@@ -332,7 +324,7 @@ public abstract class PolarisAuthzTestsFactory {
                                         privilege,
                                         privilegeSet)
                                     .isInstanceOf(ForbiddenException.class)
-                                    .hasMessage(expectedDeniedMessage())
+                                    .hasMessage("Authorization denied")
                                     .hasMessageNotContaining(principalName());
                                 assertThat(grantAction().apply(privilege).isSuccess())
                                     .describedAs("Expected success after granting '%s'", privilege)
@@ -360,7 +352,7 @@ public abstract class PolarisAuthzTestsFactory {
                                     "Expected ForbiddenException after revoking all sufficient privileges '%s'",
                                     privilegeSet)
                                 .isInstanceOf(ForbiddenException.class)
-                                .hasMessage(expectedDeniedMessage())
+                                .hasMessage("Authorization denied")
                                 .hasMessageNotContaining(principalName());
                           }));
 
@@ -394,7 +386,7 @@ public abstract class PolarisAuthzTestsFactory {
                                     "Expected ForbiddenException with insufficient privilege set '%s'",
                                     privilegeSet)
                                 .isInstanceOf(ForbiddenException.class)
-                                .hasMessage(expectedDeniedMessage())
+                                .hasMessage("Authorization denied")
                                 .hasMessageNotContaining(principalName());
 
                           } finally {

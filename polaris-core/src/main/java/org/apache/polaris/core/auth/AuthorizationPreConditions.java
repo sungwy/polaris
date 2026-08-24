@@ -50,13 +50,7 @@ public final class AuthorizationPreConditions {
             FeatureConfiguration.ENFORCE_PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_CHECKING)
         && authzOp != PolarisAuthorizableOperation.ROTATE_CREDENTIALS
         && mustRotateCredentials(polarisPrincipal)) {
-      throw new ClientVisibleForbiddenException("Principal must rotate credentials first");
-    }
-  }
-
-  static class ClientVisibleForbiddenException extends ForbiddenException {
-    ClientVisibleForbiddenException(String message) {
-      super("%s", message);
+      throw new ForbiddenException("Principal must rotate credentials first");
     }
   }
 

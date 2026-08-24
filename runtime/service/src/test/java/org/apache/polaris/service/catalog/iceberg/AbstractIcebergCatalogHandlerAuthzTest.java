@@ -206,7 +206,6 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
                 authzTestsBuilder("listNamespaces (before rotation)")
                     .action(() -> handler.get().listNamespaces(Namespace.of()))
                     .principalName(principalName)
-                    .expectedDeniedMessage("Principal must rotate credentials first")
                     .shouldFailWithAnyPrivilege()
                     .createTests(),
                 authzTestsBuilder("createNamespace (before rotation)")
@@ -217,13 +216,11 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
                                 .createNamespace(
                                     CreateNamespaceRequest.builder().withNamespace(ns3).build()))
                     .principalName(principalName)
-                    .expectedDeniedMessage("Principal must rotate credentials first")
                     .shouldFailWithAnyPrivilege()
                     .createTests(),
                 authzTestsBuilder("listTables (before rotation)")
                     .action(() -> handler.get().listTables(NS1, null, null))
                     .principalName(principalName)
-                    .expectedDeniedMessage("Principal must rotate credentials first")
                     .shouldFailWithAnyPrivilege()
                     .createTests())
             .flatMap(s -> s);
