@@ -20,6 +20,7 @@ package org.apache.polaris.extension.auth.opa;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -50,6 +51,7 @@ import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.io.HttpClientResponseHandler;
 import org.apache.hc.core5.http.io.entity.HttpEntities;
 import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.AuthorizationIntent;
 import org.apache.polaris.core.auth.AuthorizationRequest;
@@ -742,6 +744,12 @@ public class OpaPolarisAuthorizerTest {
                     .contains("OPA denied authorization")
                     .contains("operation=GET_CATALOG")
                     .contains("principal=alice"));
+
+    assertThatThrownBy(decision::throwIfDenied)
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessage("Authorization denied")
+        .hasMessageNotContaining("principal=alice")
+        .hasMessageNotContaining("operation=GET_CATALOG");
   }
 
   @Test

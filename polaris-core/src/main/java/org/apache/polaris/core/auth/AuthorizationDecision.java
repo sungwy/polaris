@@ -23,10 +23,13 @@ import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.polaris.immutables.PolarisImmutable;
 import org.immutables.value.Value;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Authorization decision returned by authorizer implementations. */
 @PolarisImmutable
 public interface AuthorizationDecision {
+  Logger LOGGER = LoggerFactory.getLogger(AuthorizationDecision.class);
   AuthorizationDecision ALLOW = ImmutableAuthorizationDecision.of(true, Optional.empty());
 
   static AuthorizationDecision allow() {
@@ -45,7 +48,8 @@ public interface AuthorizationDecision {
 
   default void throwIfDenied() {
     if (!isAllowed()) {
-      throw new ForbiddenException("%s", getMessage().orElse("Authorization denied"));
+      getMessage().ifPresent(message -> LOGGER.debug("Authorization denied: {}", message));
+      throw new ForbiddenException("Authorization denied");
     }
   }
 }

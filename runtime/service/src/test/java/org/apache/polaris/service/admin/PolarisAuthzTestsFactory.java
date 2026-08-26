@@ -324,8 +324,8 @@ public abstract class PolarisAuthzTestsFactory {
                                         privilege,
                                         privilegeSet)
                                     .isInstanceOf(ForbiddenException.class)
-                                    .hasMessageContaining(principalName())
-                                    .hasMessageContaining("is not authorized");
+                                    .hasMessage("Authorization denied")
+                                    .hasMessageNotContaining(principalName());
                                 assertThat(grantAction().apply(privilege).isSuccess())
                                     .describedAs("Expected success after granting '%s'", privilege)
                                     .isTrue();
@@ -352,8 +352,8 @@ public abstract class PolarisAuthzTestsFactory {
                                     "Expected ForbiddenException after revoking all sufficient privileges '%s'",
                                     privilegeSet)
                                 .isInstanceOf(ForbiddenException.class)
-                                .hasMessageContaining(principalName())
-                                .hasMessageContaining("is not authorized");
+                                .hasMessage("Authorization denied")
+                                .hasMessageNotContaining(principalName());
                           }));
 
                   return DynamicContainer.dynamicContainer(
@@ -386,8 +386,8 @@ public abstract class PolarisAuthzTestsFactory {
                                     "Expected ForbiddenException with insufficient privilege set '%s'",
                                     privilegeSet)
                                 .isInstanceOf(ForbiddenException.class)
-                                .hasMessageContaining(principalName())
-                                .hasMessageContaining("is not authorized");
+                                .hasMessage("Authorization denied")
+                                .hasMessageNotContaining(principalName());
 
                           } finally {
                             for (PolarisPrivilege privilege : privilegeSet) {

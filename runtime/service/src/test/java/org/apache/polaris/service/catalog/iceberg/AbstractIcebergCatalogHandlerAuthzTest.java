@@ -319,7 +319,8 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     Assertions.assertThatThrownBy(
             () -> newHandler(Set.of(PRINCIPAL_ROLE2)).listNamespaces(Namespace.of()))
         .isInstanceOf(ForbiddenException.class)
-        .hasMessageContaining("is not authorized");
+        .hasMessage("Authorization denied")
+        .hasMessageNotContaining(PRINCIPAL_ROLE2);
 
     // If we revoke, then it should fail again even with all principal roles activated.
     assertSuccess(
